@@ -8,14 +8,14 @@ export function setCsrfToken(value: string | null) {
 }
 
 export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  if (!apiBase) throw new Error('The cafe reservation service is not configured yet. Please contact the cafe.');
+  // A blank production base uses same-origin /api requests, proxied to Render by Vercel.
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 15_000);
   const headers = new Headers(init.headers);
   const method = (init.method || 'GET').toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) headers.set('X-CSRF-Token', csrfToken);
   try {
-    return await fetch(`${apiBase}${path.startsWith('/') ? path : `/${path}`}`, {
+    return await fetch(apiBase + (path.startsWith('/') ? path : '/' + path), {
       ...init,
       method,
       headers,
