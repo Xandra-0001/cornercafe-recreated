@@ -9,7 +9,7 @@
 - `backend/src/database/migrations/` contains versioned PostgreSQL schema; migration checksums prevent changing an applied migration.
 - `backend/src/data/catalog.json` is shared by the backend and TypeScript frontend for 27 tables, menu items, and time slots.
 
-Production hosting is Vercel for the static React/Vite frontend, Render for the Node API, and Render PostgreSQL for persistent state. The frontend uses public `VITE_API_BASE_URL`; no backend handler remains under `api/`.
+Production hosting is a Vercel React/Vite frontend plus Vercel Node.js Functions for `/api/*`, with Neon PostgreSQL for persistent state. The Express app is wrapped by `api/[...path].js`. Production API calls are same-origin; leave `VITE_API_BASE_URL` blank. Vercel's sensitive environment settings hold the database URL and session secret.
 
 ## API inventory
 

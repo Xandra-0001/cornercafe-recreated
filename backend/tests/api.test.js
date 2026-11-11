@@ -7,6 +7,7 @@ import { loadConfig } from '../src/config/env.js';
 import { runMigrations } from '../src/database/migrations.js';
 import { makePassword } from '../src/utils/password.js';
 import { withTransaction } from '../src/utils/database.js';
+import { bootstrapInitialOwner } from '../src/services/auth.js';
 
 const origin = 'http://127.0.0.1:5173';
 let database;
@@ -82,6 +83,24 @@ test('migrations seed all 27 tables and 9 menu items; rerunning is safe', async 
   await runMigrations(pool);
   const migrations = await pool.query('SELECT count(*)::int AS count FROM schema_migrations');
   assert.equal(migrations.rows[0].count, 1);
+});
+
+test('first-owner bootstrap creates one owner only and ignores absent configuration', async () => {
+  const freshDatabase = new PGlite({ extensions: { btree_gist } });
+  const freshPool = createTestPool(freshDatabase);
+  try {
+    await runMigrations(freshPool);
+    assert.equal(await bootstrapInitialOwner(freshPool, {}), false);
+    const credentials = { OWNER_NAME: 'First Owner', OWNER_EMAIL: 'OWNER@example.test', OWNER_PASSWORD: 'A generated temporary password 123!' };
+    assert.equal(await bootstrapInitialOwner(freshPool, credentials), true);
+    assert.equal(await bootstrapInitialOwner(freshPool, { ...credentials, OWNER_EMAIL: 'second@example.test' }), false);
+    const result = await freshPool.query("SELECT name, email, role, password_hash FROM admin_users WHERE role = 'owner'");
+    assert.equal(result.rows.length, 1);
+    assert.equal(result.rows[0].email, 'owner@example.test');
+    assert.match(result.rows[0].password_hash, /^scrypt\$32768\$/);
+  } finally {
+    await freshPool.end();
+  }
 });
 
 test('valid login creates HttpOnly secure-configured session; bad logins are generic and rate limited', async () => {
