@@ -18,6 +18,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",
+    "@emnapi/core": "^2.0.0-beta.2",
+    "@emnapi/runtime": "^2.0.0-beta.2",
     "@rolldown/plugin-babel": "^0.3.0",
     "@types/babel__core": "^7.20.5",
     "@types/node": "^24.19.2",
@@ -28,9 +30,5 @@
     "oxlint": "^1.90.0",
     "typescript": "~7.0.2",
     "vite": "^8.3.6"
-  },
-  "optionalDependencies": {
-    "@emnapi/core": "2.0.0-beta.2",
-    "@emnapi/runtime": "2.0.0-beta.2"
   }
 }
