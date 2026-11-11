@@ -2,7 +2,8 @@ services:
   - type: web
     name: corner-cafe-api
     runtime: node
-    plan: 0.5c-512mb
+    # Demo-only: free instances sleep when idle; upgrade before live café use.
+    plan: free
     region: singapore
     rootDir: backend
     buildCommand: npm ci
@@ -55,7 +56,8 @@ services:
 
 databases:
   - name: corner-cafe-postgres
-    plan: 0.1c-256mb
+    # Temporary demo database; Render Free Postgres expires after 30 days.
+    plan: free
     region: singapore
     databaseName: corner_cafe
     user: corner_cafe_app
