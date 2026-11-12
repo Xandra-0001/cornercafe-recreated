@@ -3,6 +3,7 @@ import { loadConfig } from '../backend/src/config/env.js';
 import { runMigrations } from '../backend/src/database/migrations.js';
 import { createPool } from '../backend/src/database/pool.js';
 import { bootstrapInitialOwner } from '../backend/src/services/auth.js';
+import { normalizeVercelApiUrl } from '../backend/src/utils/vercel-routing.js';
 
 let appPromise;
 
@@ -30,11 +31,7 @@ async function getApp() {
 export default async function handler(req, res) {
   try {
     const app = await getApp();
-    const requestUrl = new URL(req.url || '/', 'https://vercel.invalid');
-    if (!requestUrl.pathname.startsWith('/api/')) {
-      requestUrl.pathname = `/api${requestUrl.pathname.startsWith('/') ? '' : '/'}${requestUrl.pathname}`;
-      req.url = `${requestUrl.pathname}${requestUrl.search}`;
-    }
+    req.url = normalizeVercelApiUrl(req.url);
     return app(req, res);
   } catch (error) {
     console.error(JSON.stringify({ event: 'serverless_initialization_failed', code: error?.code || 'API_INIT_FAILED' }));

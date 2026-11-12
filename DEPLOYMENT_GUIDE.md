@@ -52,7 +52,7 @@ Do not add `DATABASE_URL`, `SESSION_SECRET`, SMTP credentials, CAPTCHA secret ke
 
 ### Frontend variables
 
-Production uses same-origin `/api` paths, so no `VITE_API_BASE_URL` value is needed. If this app is ever moved to a different API origin, that public origin may be set as `VITE_API_BASE_URL`, but cookie/CSRF behavior must be re-designed and browser-tested before launch.
+Production uses same-origin `/api` paths, so no `VITE_API_BASE_URL` value is needed. The frontend maps nested staff routes to one-segment Vercel function paths; the adapter maps them back to the backend's canonical Express routes. If this app is ever moved to a different API origin, that public origin may be set as `VITE_API_BASE_URL`, but cookie/CSRF behavior must be re-designed and browser-tested before launch.
 
 ## Neon database and first owner
 
