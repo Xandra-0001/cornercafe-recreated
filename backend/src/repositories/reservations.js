@@ -42,7 +42,15 @@ function mapStaffBooking(row, preOrders) {
     date: row.visit_date,
     timeSlot: row.time_slot,
     partySize: Number(row.party_size),
-    table: mapTable(row, true),
+    table: {
+      id: row.table_id,
+      name: row.table_name,
+      zone: row.table_zone,
+      floor: Number(row.table_floor),
+      capacity: Number(row.table_capacity),
+      isAvailable: true,
+      ...(row.table_layout && typeof row.table_layout === 'object' ? row.table_layout : {}),
+    },
     preOrders,
     customerName: row.customer_name,
     customerPhone: row.customer_phone || '',
@@ -299,3 +307,4 @@ export function reservationRequestHash(fields) {
     specialRequests: fields.specialRequests, preOrders: fields.preOrders,
   }));
 }
+
