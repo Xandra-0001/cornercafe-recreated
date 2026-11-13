@@ -338,7 +338,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                           </span>
 
                           {/* Quick status actions */}
-                          {b.status !== 'confirmed' && (
+                          {b.status === 'pending' && (
                             <button
                               type="button"
                               onClick={() => onUpdateBookingStatus(b.id, 'confirmed')}
@@ -560,3 +560,4 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     </div>
   );
 };
+
