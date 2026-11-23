@@ -44,7 +44,7 @@ export function SeatCube({ tables, selectedTableId, onSelectTable, partySize }: 
           <span><i className="is-selected" /> Selected</span>
           <span><i className="is-unavailable" /> Unavailable</span>
         </div>
-        <p>Showing <strong>27 tables</strong> for <strong>{partySize} {partySize === 1 ? 'guest' : 'guests'}</strong></p>
+        <p>Showing <strong>{tables.length} {tables.length === 1 ? 'table' : 'tables'}</strong> for <strong>{partySize} {partySize === 1 ? 'guest' : 'guests'}</strong></p>
       </div>
 
       <div className="seat-cube-picker__controls" aria-label="Rotate table view">

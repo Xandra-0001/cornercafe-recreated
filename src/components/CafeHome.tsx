@@ -18,6 +18,8 @@ import pastryImage from '../assets/cafe-pastries.jpg';
 import brunchImage from '../assets/cafe-brunch.jpg';
 import './home.css';
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export interface BookingIntent {
   date: string;
   time: string;
@@ -269,7 +271,7 @@ export function CafeHome({ onBook }: CafeHomeProps) {
           </nav>
           <button type="button" className="home-footer__book" onClick={bookToday}>Book a Table</button>
         </div>
-        <p>© {new Date().getFullYear()} The Corner Cafe · Made for little moments.</p>
+        <p>© {CURRENT_YEAR} The Corner Cafe · Made for little moments.</p>
       </footer>
     </div>
   );

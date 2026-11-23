@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { UserPlus, UserRoundX } from 'lucide-react';
 import { apiFetch, apiJson } from '../lib/api';
 
@@ -20,21 +20,37 @@ export function AdminTeam() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = useCallback(async (isActive: () => boolean = () => true) => {
     try {
       const response = await apiFetch('/api/admin/users');
       const result = await apiJson<{ admins: AdminUser[] }>(response);
-      setAdmins(result.admins ?? []);
-      setMessage(null);
+      if (isActive()) {
+        setAdmins(result.admins ?? []);
+        setMessage(null);
+      }
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Could not load team accounts.');
+      if (isActive()) setMessage(reason instanceof Error ? reason.message : 'Could not load team accounts.');
     } finally {
-      setLoading(false);
+      if (isActive()) setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let active = true;
+    apiFetch('/api/admin/users')
+      .then((response) => apiJson<{ admins: AdminUser[] }>(response))
+      .then((result) => {
+        if (active) {
+          setAdmins(result.admins ?? []);
+          setMessage(null);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active) setMessage(reason instanceof Error ? reason.message : 'Could not load team accounts.');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const addAdmin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -92,7 +108,7 @@ export function AdminTeam() {
               {admin.role !== 'owner' && <button type="button" className="team-disable" onClick={() => void toggleAdmin(admin)}><UserRoundX size={14} /> {admin.isActive ? 'Deactivate' : 'Reactivate'}</button>}
             </div>
           ))}
-          <button type="button" className="team-refresh" onClick={() => void load()}>Refresh team list</button>
+          <button type="button" className="team-refresh" onClick={() => { setLoading(true); void load(); }}>Refresh team list</button>
         </div>
       )}
     </section>

@@ -19,7 +19,6 @@ import { SeatCube } from './SeatCube';
 import './booking-flow.css';
 
 interface BookingWizardProps {
-  tables: CafeTable[];
   onBookingComplete: (newBooking: Booking, idempotencyKey: string, formToken: string, website: string) => Promise<Booking>;
   onGoToAdmin: () => void;
   onGoHome: () => void;
@@ -65,7 +64,6 @@ function createStartingState(initialDate?: string, initialTime?: string, initial
 }
 
 export function BookingWizard({
-  tables,
   onBookingComplete,
   onGoToAdmin,
   onGoHome,
@@ -75,10 +73,13 @@ export function BookingWizard({
 }: BookingWizardProps) {
   const [formData, setFormData] = useState<WizardState>(() => createStartingState(initialDate, initialTime, initialPartySize));
   const [currentStep, setCurrentStep] = useState(1);
-  const [availableTables, setAvailableTables] = useState<CafeTable[]>(tables);
+  const [availableTables, setAvailableTables] = useState<CafeTable[]>([]);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [availabilityError, setAvailabilityError] = useState<string | null>(null);
-  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityLoading, setAvailabilityLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [hasFreshAvailability, setHasFreshAvailability] = useState(false);
+  const [availabilityRetry, setAvailabilityRetry] = useState(0);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
@@ -86,8 +87,10 @@ export function BookingWizard({
   const [website, setWebsite] = useState('');
   const formToken = useRef('');
   const idempotency = useRef<{ fingerprint: string; key: string } | null>(null);
+  const selectedTableId = formData.selectedTable?.id ?? null;
   const today = todayAsDateInput();
   const preOrderTotal = formData.preOrders.reduce((sum, entry) => sum + entry.item.price * entry.quantity, 0);
+  const preOrderCount = formData.preOrders.reduce((sum, entry) => sum + entry.quantity, 0);
   const categories = ['All', ...Array.from(new Set(MENU_ITEMS.map((item) => item.category)))];
   const visibleMenuItems = MENU_ITEMS.filter((item) => selectedCategory === 'All' || item.category === selectedCategory);
 
@@ -97,32 +100,31 @@ export function BookingWizard({
 
   useEffect(() => {
     let active = true;
-    setAvailabilityLoading(true);
     apiFetch(`/api/availability?date=${encodeURIComponent(formData.date)}&partySize=${formData.partySize}`)
       .then((response) => apiJson<{ tables: CafeTable[]; formToken: string }>(response))
       .then((result) => {
         if (active) {
           setAvailableTables(result.tables ?? []);
+          setHasFreshAvailability(true);
           formToken.current = result.formToken || formToken.current;
           setAvailabilityError(null);
         }
       })
       .catch((error: unknown) => {
-        if (active) setAvailabilityError(error instanceof Error ? error.message : 'Could not load live seating availability.');
+        if (active) {
+          setAvailableTables([]);
+          setHasFreshAvailability(false);
+          setAvailabilityError(error instanceof Error ? error.message : 'Could not load live seating availability.');
+        }
       })
       .finally(() => { if (active) setAvailabilityLoading(false); });
     return () => { active = false; };
-  }, [formData.date, formData.partySize]);
+  }, [formData.date, formData.partySize, availabilityRetry]);
 
   useEffect(() => {
-    const table = formData.selectedTable;
-    if (!table) {
-      setAvailableSlots([]);
-      return;
-    }
+    if (!selectedTableId) return;
     let active = true;
-    setAvailableSlots([]);
-    apiFetch(`/api/availability?date=${encodeURIComponent(formData.date)}&partySize=${formData.partySize}&tableId=${encodeURIComponent(table.id)}`)
+    apiFetch(`/api/availability?date=${encodeURIComponent(formData.date)}&partySize=${formData.partySize}&tableId=${encodeURIComponent(selectedTableId)}`)
       .then((response) => apiJson<{ availableSlots: string[]; formToken: string }>(response))
       .then((result) => {
         if (active) {
@@ -137,17 +139,35 @@ export function BookingWizard({
       })
       .catch((error: unknown) => {
         if (active) setAvailabilityError(error instanceof Error ? error.message : 'Could not load available times.');
-      });
+      })
+      .finally(() => { if (active) setSlotsLoading(false); });
     return () => { active = false; };
-  }, [formData.date, formData.partySize, formData.selectedTable?.id]);
+  }, [formData.date, formData.partySize, selectedTableId, availabilityRetry]);
 
   const changeVisit = (key: 'date' | 'partySize', value: string | number) => {
+    setCurrentStep(1);
+    setAvailableTables([]);
+    setHasFreshAvailability(false);
+    setAvailabilityLoading(true);
+    setAvailableSlots([]);
+    setSlotsLoading(false);
+    setAvailabilityError(null);
     setFormData((previous) => ({
       ...previous,
       [key]: value,
       selectedTable: null,
     }));
     setValidationError(null);
+  };
+
+  const retryAvailability = () => {
+    setAvailabilityError(null);
+    setAvailableTables([]);
+    setHasFreshAvailability(false);
+    setAvailabilityLoading(true);
+    setAvailableSlots([]);
+    setSlotsLoading(Boolean(selectedTableId));
+    setAvailabilityRetry((attempt) => attempt + 1);
   };
 
   const updateItemQty = (item: MenuItem, delta: number) => {
@@ -166,6 +186,14 @@ export function BookingWizard({
     setValidationError(null);
     if (currentStep === 1 && !formData.selectedTable) {
       setValidationError('Choose an available table from one of the three floors to continue.');
+      return;
+    }
+    if (currentStep === 1 && availabilityLoading) {
+      setValidationError('Please wait while we check current table availability.');
+      return;
+    }
+    if (currentStep === 2 && slotsLoading) {
+      setValidationError('Please wait while we check available times.');
       return;
     }
     if (currentStep === 2 && !availableSlots.includes(formData.timeSlot)) {
@@ -325,15 +353,33 @@ export function BookingWizard({
               <div className="booking-step__heading">
                 <p className="booking-eyebrow">01 · TABLES BY FLOOR</p>
                 <h2 id="booking-table-title">Choose your corner.</h2>
-                <p>Rotate the cube to see the tables on each side. Each floor has nine tables.</p>
               </div>
               {availabilityLoading && <p className="booking-live-status" role="status">Checking current availability…</p>}
-              <SeatCube
-                tables={availableTables}
-                selectedTableId={formData.selectedTable?.id ?? null}
-                onSelectTable={(table) => { setFormData((previous) => ({ ...previous, selectedTable: table })); setValidationError(null); }}
-                partySize={formData.partySize}
-              />
+              {!availabilityLoading && !hasFreshAvailability && (
+                <div className="booking-live-status" role="status">
+                  <p>Live table availability could not be loaded.</p>
+                  <button type="button" className="btn btn-ghost" onClick={retryAvailability}>Try again</button>
+                </div>
+              )}
+              {!availabilityLoading && hasFreshAvailability && availableTables.length === 0 && (
+                <p className="booking-empty-note">No tables are available for this visit. Choose another date or party size.</p>
+              )}
+              {!availabilityLoading && hasFreshAvailability && availableTables.length > 0 && (
+                <SeatCube
+                  tables={availableTables}
+                  selectedTableId={selectedTableId}
+                  onSelectTable={(table) => {
+                    if (selectedTableId !== table.id) {
+                      setAvailableSlots([]);
+                      setSlotsLoading(true);
+                    }
+                    setFormData((previous) => ({ ...previous, selectedTable: table }));
+                    setAvailabilityError(null);
+                    setValidationError(null);
+                  }}
+                  partySize={formData.partySize}
+                />
+              )}
               {formData.selectedTable && (
                 <div className="booking-selection" aria-live="polite">
                   <span className="booking-selection__icon"><Check size={17} /></span>
@@ -351,7 +397,9 @@ export function BookingWizard({
                 <h2 id="booking-time-title">What time works for you?</h2>
                 <p>{formData.selectedTable?.id} is on Floor {formData.selectedTable?.floor}, {formData.selectedTable?.zone}. It will be held for 90 minutes.</p>
               </div>
-              {availableSlots.length === 0 && !availabilityError && !availabilityLoading && <p className="booking-empty-note">This table has no open time today. Go back and choose another table.</p>}
+              {slotsLoading && <p className="booking-live-status" role="status">Checking available times…</p>}
+              {availabilityError && !slotsLoading && formData.selectedTable && <button type="button" className="btn btn-ghost" onClick={retryAvailability}>Try loading times again</button>}
+              {availableSlots.length === 0 && !availabilityError && !slotsLoading && <p className="booking-empty-note">This table has no open time on this date. Go back and choose another table.</p>}
               <div className="booking-time-grid">
                 {TIME_SLOTS.map((slot) => {
                   const isAvailable = availableSlots.includes(slot);
@@ -375,7 +423,7 @@ export function BookingWizard({
                   <h2 id="booking-menu-title">Would you like us to prepare a treat?</h2>
                   <p>Pre-order a few cafe favorites. This step is optional.</p>
                 </div>
-                <div className="booking-order-total"><span>{formData.preOrders.reduce((sum, entry) => sum + entry.quantity, 0)} items</span><strong>${preOrderTotal.toFixed(2)}</strong></div>
+                <div className="booking-order-total"><span>{preOrderCount} {preOrderCount === 1 ? 'item' : 'items'}</span><strong>${preOrderTotal.toFixed(2)}</strong></div>
               </div>
               <div className="booking-category-list" aria-label="Filter menu items">
                 {categories.map((category) => <button type="button" className={`booking-category${selectedCategory === category ? ' is-active' : ''}`} key={category} onClick={() => setSelectedCategory(category)} aria-pressed={selectedCategory === category}>{category}</button>)}
@@ -444,7 +492,7 @@ export function BookingWizard({
           <div className="booking-navigation">
             {currentStep > 1 ? <button type="button" className="btn btn-ghost" onClick={goBack}><ArrowLeft size={15} /> Back</button> : <span />}
             {currentStep < 5 ? (
-              <button type="button" className="btn btn-primary" onClick={goNext}>
+              <button type="button" className="btn btn-primary" onClick={goNext} disabled={(currentStep === 1 && availabilityLoading) || (currentStep === 2 && slotsLoading)}>
                 {currentStep === 3 ? 'Continue' : 'Continue'} <ArrowRight size={16} />
               </button>
             ) : (
