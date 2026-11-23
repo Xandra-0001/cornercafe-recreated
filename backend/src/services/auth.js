@@ -19,6 +19,33 @@ function safeAdmin(admin) {
   return { id: admin.id, name: admin.name, email: admin.email, role: admin.role, isActive: admin.is_active, createdAt: admin.created_at };
 }
 
+// Optional, server-side first-owner setup for providers where running the CLI against
+// production is impractical. Remove OWNER_* environment variables after it succeeds.
+export async function bootstrapInitialOwner(pool, env = process.env) {
+  const name = typeof env.OWNER_NAME === 'string' ? env.OWNER_NAME.trim() : '';
+  const email = normalizeEmail(env.OWNER_EMAIL);
+  const password = typeof env.OWNER_PASSWORD === 'string' ? env.OWNER_PASSWORD : '';
+  if (!name && !email && !password) return false;
+
+  let created = false;
+  await withTransaction(pool, async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(871222411::bigint)');
+    const owners = await client.query("SELECT COUNT(*)::integer AS count FROM admin_users WHERE role = 'owner' AND is_active = true");
+    if (Number(owners.rows[0].count) > 0) return;
+    if (!name || name.length < 2 || name.length > 100 || hasControlCharacters(name)
+      || !validEmail(email) || password.length < 16 || password.length > 128) {
+      throw new Error('Initial owner environment configuration is invalid.');
+    }
+    const passwordHash = await makePassword(password);
+    await client.query(
+      `INSERT INTO admin_users (id, name, email, role, password_hash) VALUES ($1, $2, $3, 'owner', $4)`,
+      [randomUUID(), name, email, passwordHash],
+    );
+    created = true;
+  });
+  return created;
+}
+
 export async function authenticate(pool, token) {
   if (typeof token !== 'string' || !/^[A-Za-z0-9_-]{40,50}$/.test(token)) return null;
   const tokenHash = sha256(token);

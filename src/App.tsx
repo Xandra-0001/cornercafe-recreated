@@ -11,9 +11,11 @@ import './App.css';
 
 type AdminSession = { id?: string; name?: string; email: string; role?: 'owner' | 'staff'; preview: boolean };
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 function MainApp() {
   const [tables, setTables] = useState<CafeTable[]>(INITIAL_TABLES);
-  const [bookings, setBookings] = useState<Booking[]>(INITIAL_BOOKINGS);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
@@ -45,9 +47,8 @@ function MainApp() {
   }, []);
 
   useEffect(() => {
-    if (!adminSession || adminSession.preview) return;
+    if (!adminSession?.email || adminSession.preview) return;
     let active = true;
-    setBookings([]);
     const loadDashboard = async () => {
       try {
         const [reservationResponse, tableResponse] = await Promise.all([
@@ -148,6 +149,9 @@ function MainApp() {
 
   const handlePreviewLogin = () => {
     const previewEmail = 'preview@cornercafe.test';
+    setBookings(INITIAL_BOOKINGS);
+    setTables(INITIAL_TABLES);
+    setDashboardError(null);
     setAdminSession({ email: previewEmail, role: 'staff', preview: true });
     navigate('/admin');
   };
@@ -164,6 +168,9 @@ function MainApp() {
     }
     setCsrfToken(null);
     setAdminSession(null);
+    setBookings([]);
+    setTables(INITIAL_TABLES);
+    setDashboardError(null);
     navigate('/');
   };
 
@@ -186,7 +193,6 @@ function MainApp() {
             path="/reserve"
             element={(
               <BookingWizard
-                tables={tables}
                 onBookingComplete={handleBookingComplete}
                 onGoToAdmin={() => navigate('/admin/login')}
                 onGoHome={() => navigate('/')}
@@ -250,7 +256,7 @@ function MainApp() {
         <footer className="app-footer">
           <span className="footer-brand">THE CORNER CAFE</span>
           <span>Reservations made simple</span>
-          <span>© {new Date().getFullYear()} The Corner Cafe</span>
+          <span>© {CURRENT_YEAR} The Corner Cafe</span>
         </footer>
       )}
     </div>
